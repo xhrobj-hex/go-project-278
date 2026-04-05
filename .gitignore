@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+__MACOSX/
+
+# IDE / editors
+.vscode/
+
+# build artifacts
+bin/
+coverage.out
+
+# asciinema
+*.cast

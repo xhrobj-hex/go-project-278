@@ -7,20 +7,22 @@ import (
 )
 
 func main() {
-	router := gin.New()
-
-	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
-
-	router.GET("/ping", func(c *gin.Context) {
-		c.String(200, "pong")
-	})
-
-	router.GET("/panic", func(c *gin.Context) {
-		panic("test paic")
-	})
+	router := setupRouter()
 
 	if err := router.Run(":8080"); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func setupRouter() *gin.Engine {
+	r := gin.New()
+
+	r.Use(gin.Logger())
+	r.Use(gin.Recovery())
+
+	r.GET("/ping", func(c *gin.Context) {
+		c.String(200, "pong")
+	})
+
+	return r
 }

@@ -31,4 +31,4 @@ jobs:
         run: make build
       
       - name: (^_^) Run tests
-        run: go test ./...
+        run: make test

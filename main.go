@@ -1,6 +1,10 @@
 package main
 
-import "github.com/gin-gonic/gin"
+import (
+	"log"
+
+	"github.com/gin-gonic/gin"
+)
 
 func main() {
 	router := gin.New()
@@ -9,5 +13,7 @@ func main() {
 		c.String(200, "pong")
 	})
 
-	router.Run(":8080")
+	if err := router.Run(":8080"); err != nil {
+		log.Fatal(err)
+	}
 }

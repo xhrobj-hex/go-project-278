@@ -1,7 +1,8 @@
 package main
 
-import "fmt"
+import "github.com/gin-gonic/gin"
 
 func main() {
-	fmt.Println("Hello, go-project-278")
+	router := gin.New()
+	router.Run(":8080")
 }

@@ -50,3 +50,7 @@ https://example.com/long-url
 ### Hexlet tests and linter status
 
 [![Actions Status](https://github.com/xhrobj-hex/go-project-278/actions/workflows/hexlet-check.yml/badge.svg)](https://github.com/xhrobj-hex/go-project-278/actions)
+
+## Project CI - Quality checks -> lint, build and test
+
+[![(-_-) GO CI](https://github.com/xhrobj-hex/go-project-278/actions/workflows/go-ci.yml/badge.svg)](https://github.com/xhrobj-hex/go-project-278/actions/workflows/go-ci.yml)

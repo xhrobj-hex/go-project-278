@@ -1,4 +1,4 @@
-.PHONY: build run test lint clean
+.PHONY: build run test test-with-coverage lint clean
 
 build:
 	mkdir -p bin
@@ -8,7 +8,10 @@ run: build
 	./bin/main
 
 test:
-	go test -v ./...
+	go test ./...
+
+test-with-coverage:
+	go test -coverprofile=coverage.out ./...
 
 lint:
 	golangci-lint run

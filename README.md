@@ -54,3 +54,9 @@ https://example.com/long-url
 ## Project CI - Quality checks -> lint, build and test
 
 [![(-_-) GO CI](https://github.com/xhrobj-hex/go-project-278/actions/workflows/go-ci.yml/badge.svg)](https://github.com/xhrobj-hex/go-project-278/actions/workflows/go-ci.yml)
+
+## SonarQube statuses
+
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=xhrobj-hex_go-project-278&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=xhrobj-hex_go-project-278)
+
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=xhrobj-hex_go-project-278&metric=coverage)](https://sonarcloud.io/summary/new_code?id=xhrobj-hex_go-project-278)

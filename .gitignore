@@ -6,7 +6,7 @@ __MACOSX/
 .vscode/
 
 # build artifacts
-bin/
+bin/main
 coverage.out
 
 # asciinema

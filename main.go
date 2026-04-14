@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -24,19 +25,15 @@ func main() {
 		log.Fatal("DATABASE_URL is required")
 	}
 
-	db, err := sql.Open("postgres", databaseURL)
+	db, err := connectDB(databaseURL)
 	if err != nil {
-		log.Fatalf("failed to open database: %v", err)
+		log.Fatal(err)
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
 			log.Printf("failed to close database: %v", err)
 		}
 	}()
-
-	if err := db.Ping(); err != nil {
-		log.Fatalf("failed to ping database: %v", err)
-	}
 
 	router := setupRouter()
 
@@ -49,6 +46,19 @@ func main() {
 	if err := router.Run(":" + port); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func connectDB(databaseURL string) (*sql.DB, error) {
+	db, err := sql.Open("postgres", databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %v", err)
+	}
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %v", err)
+	}
+
+	return db, nil
 }
 
 func setupRouter() *gin.Engine {

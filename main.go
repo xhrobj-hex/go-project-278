@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"os"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
+	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -16,6 +18,21 @@ func main() {
 		log.Printf("Sentry initialization failed: %v\n", err)
 	}
 	defer sentry.Flush(2 * time.Second)
+
+	databaseURL := os.Getenv("DATABASE_URL") // !!!: тоже не забыть положить в Render
+	if databaseURL == "" {
+		log.Fatal("DATABASE_URL is required")
+	}
+
+	db, err := sql.Open("postgres", databaseURL)
+	if err != nil {
+		log.Fatalf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		log.Fatalf("failed to ping database: %v", err)
+	}
 
 	router := setupRouter()
 

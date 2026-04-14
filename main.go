@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -13,21 +14,31 @@ import (
 	_ "github.com/lib/pq"
 )
 
+type config struct {
+	databaseURL string
+	port        string
+}
+
 func main() {
-	// To initialize Sentry's handler, you need to initialize Sentry itself beforehand
-	if err := sentry.Init(sentry.ClientOptions{}); err != nil { // NOTE: Dsn берется из env SENTRY_DSN // !!!: не забыть прописать ее в Render
-		log.Printf("Sentry initialization failed: %v\n", err)
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
+
+	if err := initSentry(); err != nil {
+		log.Printf("Sentry initialization failed: %v", err)
 	}
 	defer sentry.Flush(2 * time.Second)
 
-	databaseURL := os.Getenv("DATABASE_URL") // !!!: тоже не забыть положить в Render
-	if databaseURL == "" {
-		log.Fatal("DATABASE_URL is required")
-	}
-
-	db, err := connectDB(databaseURL)
+	db, err := connectDB(cfg.databaseURL)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
@@ -37,25 +48,41 @@ func main() {
 
 	router := setupRouter()
 
-	// NOTE: на Render платформа будет подсовывать порт в env PORT
-	port := os.Getenv("PORT")
+	log.Printf("server started on port %s", cfg.port)
+
+	return router.Run(":" + cfg.port)
+}
+
+func loadConfig() (config, error) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return config{}, errors.New("DATABASE_URL is required")
+	}
+
+	port := os.Getenv("PORT") // NOTE: на Render платформа будет подсовывать порт в env PORT
 	if port == "" {
 		port = "8080"
 	}
 
-	if err := router.Run(":" + port); err != nil {
-		log.Fatal(err)
-	}
+	return config{
+		databaseURL: databaseURL,
+		port:        port,
+	}, nil
+}
+
+func initSentry() error {
+	return sentry.Init(sentry.ClientOptions{}) // NOTE: Dsn берется из env SENTRY_DSN
 }
 
 func connectDB(databaseURL string) (*sql.DB, error) {
 	db, err := sql.Open("postgres", databaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %v", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %v", err)
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	return db, nil

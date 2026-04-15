@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
@@ -12,11 +13,20 @@ import (
 	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
+	"github.com/xhrobj-hex/go-project-278/internal/db"
 )
+
+type linkResponse struct {
+	ID          int64  `json:"id"`
+	OriginalURL string `json:"original_url"`
+	ShortName   string `json:"short_name"`
+	ShortURL    string `json:"short_url"`
+}
 
 type config struct {
 	databaseURL string
 	port        string
+	baseURL     string
 }
 
 func main() {
@@ -36,17 +46,19 @@ func run() error {
 	}
 	defer sentry.Flush(2 * time.Second)
 
-	db, err := connectDB(cfg.databaseURL)
+	dbConn, err := connectDB(cfg.databaseURL)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		if err := db.Close(); err != nil {
+		if err := dbConn.Close(); err != nil {
 			log.Printf("failed to close database: %v", err)
 		}
 	}()
 
-	router := setupRouter()
+	queries := db.New(dbConn)
+
+	router := setupRouter(cfg.baseURL, queries)
 
 	log.Printf("server started on port %s", cfg.port)
 
@@ -64,9 +76,15 @@ func loadConfig() (config, error) {
 		port = "8080"
 	}
 
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = "http://localhost:" + port
+	}
+
 	return config{
 		databaseURL: databaseURL,
 		port:        port,
+		baseURL:     baseURL,
 	}, nil
 }
 
@@ -88,7 +106,7 @@ func connectDB(databaseURL string) (*sql.DB, error) {
 	return db, nil
 }
 
-func setupRouter() *gin.Engine {
+func setupRouter(baseURL string, queries *db.Queries) *gin.Engine {
 	r := gin.New()
 
 	r.Use(gin.Logger())
@@ -105,5 +123,31 @@ func setupRouter() *gin.Engine {
 		panic("test sentry panic")
 	})
 
+	r.GET("/api/links", func(c *gin.Context) {
+		links, err := queries.ListLinks(c.Request.Context())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "failed to list links",
+			})
+			return
+		}
+
+		rs := make([]linkResponse, 0, len(links))
+		for _, link := range links {
+			rs = append(rs, linkResponse{
+				ID:          link.ID,
+				OriginalURL: link.OriginalUrl,
+				ShortName:   link.ShortName,
+				ShortURL:    buildShortURL(baseURL, link.ShortName),
+			})
+		}
+
+		c.JSON(http.StatusOK, rs)
+	})
+
 	return r
+}
+
+func buildShortURL(baseURL string, shortName string) string {
+	return baseURL + "/r/" + shortName
 }

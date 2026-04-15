@@ -7,7 +7,7 @@ import (
 )
 
 func TestPing(t *testing.T) {
-	r := setupRouter()
+	r := setupRouter("http://localhost:8080", nil)
 
 	rq := httptest.NewRequest(http.MethodGet, "/ping", nil)
 	rc := httptest.NewRecorder()

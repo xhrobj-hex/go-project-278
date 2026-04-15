@@ -4,7 +4,8 @@
 		run \
 		test test-with-coverage \
 		lint \
-		docker-build docker-run
+		docker-build docker-run \
+		migrate-up migrate-down migrate-status
 
 POSTGRES_USER=shorty
 POSTGRES_PASSWORD=secret
@@ -65,3 +66,12 @@ docker-run:
 		-e PORT=8080 \
 		-e SENTRY_DSN="$(SENTRY_DSN)" \
 		$(IMAGE_NAME)
+
+migrate-up:
+	goose -dir migrations postgres "$(POSTGRES_DSN)" up
+
+migrate-down:
+	goose -dir migrations postgres "$(POSTGRES_DSN)" down
+
+migrate-status:
+	goose -dir migrations postgres "$(POSTGRES_DSN)" status

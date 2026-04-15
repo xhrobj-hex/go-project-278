@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"embed"
 	"errors"
 	"fmt"
 	"log"
@@ -13,8 +14,12 @@ import (
 	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
+	goose "github.com/pressly/goose/v3"
 	"github.com/xhrobj-hex/go-project-278/internal/db"
 )
+
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
 
 type linkResponse struct {
 	ID          int64  `json:"id"`
@@ -55,6 +60,10 @@ func run() error {
 			log.Printf("failed to close database: %v", err)
 		}
 	}()
+
+	if err := runMigrations(dbConn); err != nil {
+		return err
+	}
 
 	queries := db.New(dbConn)
 
@@ -104,6 +113,20 @@ func connectDB(databaseURL string) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+func runMigrations(db *sql.DB) error {
+	goose.SetBaseFS(migrationsFS)
+
+	if err := goose.SetDialect("postgres"); err != nil {
+		return fmt.Errorf("failed to set goose dialect: %w", err)
+	}
+
+	if err := goose.Up(db, "migrations"); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	return nil
 }
 
 func setupRouter(baseURL string, queries *db.Queries) *gin.Engine {

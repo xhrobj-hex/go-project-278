@@ -2,19 +2,22 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"embed"
 	"errors"
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/getsentry/sentry-go"
 	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
-	_ "github.com/lib/pq"
+	pq "github.com/lib/pq"
 	goose "github.com/pressly/goose/v3"
 	store "github.com/xhrobj-hex/go-project-278/internal/db"
 )
@@ -195,11 +198,25 @@ func setupRouter(baseURL string, queries linksStore) *gin.Engine {
 			return
 		}
 
+		shortName := req.ShortName
+		if shortName == "" {
+			shortName = generateShortName()
+			// ???: стоит ли проверять сгенеренное имя на уникальность?
+			// даже при n = 6 это будет невероятное везение ...
+		}
+
 		link, err := queries.CreateLink(c.Request.Context(), store.CreateLinkParams{
 			OriginalUrl: req.OriginalURL,
-			ShortName:   req.ShortName,
+			ShortName:   shortName,
 		})
 		if err != nil {
+			if isUniqueViolation(err) {
+				c.JSON(http.StatusConflict, gin.H{
+					"error": "short_name already exists",
+				})
+				return
+			}
+
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "failed to create link",
 			})
@@ -218,5 +235,27 @@ func setupRouter(baseURL string, queries linksStore) *gin.Engine {
 }
 
 func buildShortURL(baseURL string, shortName string) string {
-	return baseURL + "/r/" + shortName
+	return strings.TrimRight(baseURL, "/") + "/r/" + shortName
+}
+
+func generateShortName() string {
+	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	const n = 6 // NOTE: 62 ^ 6 = 56_800_235_584
+
+	b := make([]byte, n)
+	for i := range b {
+		randomIndex, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphabet))))
+		if err != nil {
+			return "generated"
+		}
+		b[i] = alphabet[randomIndex.Int64()]
+	}
+
+	return string(b)
+}
+
+func isUniqueViolation(err error) bool {
+	var pqErr *pq.Error
+	// NOTE: https://www.postgresql.org/docs/current/plpgsql-errors-and-messages.html
+	return errors.As(err, &pqErr) && pqErr.Code == "23505"
 }

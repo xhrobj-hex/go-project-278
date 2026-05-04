@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"errors"
@@ -15,11 +16,15 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
 	goose "github.com/pressly/goose/v3"
-	"github.com/xhrobj-hex/go-project-278/internal/db"
+	store "github.com/xhrobj-hex/go-project-278/internal/db"
 )
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
+
+type linksLister interface {
+	ListLinks(ctx context.Context) ([]store.Link, error)
+}
 
 type linkResponse struct {
 	ID          int64  `json:"id"`
@@ -65,7 +70,7 @@ func run() error {
 		return err
 	}
 
-	queries := db.New(dbConn)
+	queries := store.New(dbConn)
 
 	router := setupRouter(cfg.baseURL, queries)
 
@@ -129,7 +134,7 @@ func runMigrations(db *sql.DB) error {
 	return nil
 }
 
-func setupRouter(baseURL string, queries *db.Queries) *gin.Engine {
+func setupRouter(baseURL string, queries linksLister) *gin.Engine {
 	r := gin.New()
 
 	r.Use(gin.Logger())

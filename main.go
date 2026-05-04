@@ -22,8 +22,9 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-type linksLister interface {
+type linksStore interface {
 	ListLinks(ctx context.Context) ([]store.Link, error)
+	CreateLink(ctx context.Context, arg store.CreateLinkParams) (store.Link, error)
 }
 
 type linkResponse struct {
@@ -31,6 +32,11 @@ type linkResponse struct {
 	OriginalURL string `json:"original_url"`
 	ShortName   string `json:"short_name"`
 	ShortURL    string `json:"short_url"`
+}
+
+type createLinkRequest struct {
+	OriginalURL string `json:"original_url"`
+	ShortName   string `json:"short_name"`
 }
 
 type config struct {
@@ -134,7 +140,7 @@ func runMigrations(db *sql.DB) error {
 	return nil
 }
 
-func setupRouter(baseURL string, queries linksLister) *gin.Engine {
+func setupRouter(baseURL string, queries linksStore) *gin.Engine {
 	r := gin.New()
 
 	r.Use(gin.Logger())
@@ -171,6 +177,41 @@ func setupRouter(baseURL string, queries linksLister) *gin.Engine {
 		}
 
 		c.JSON(http.StatusOK, rs)
+	})
+
+	r.POST("/api/links", func(c *gin.Context) {
+		var req createLinkRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid request body",
+			})
+			return
+		}
+
+		if req.OriginalURL == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "original_url is required",
+			})
+			return
+		}
+
+		link, err := queries.CreateLink(c.Request.Context(), store.CreateLinkParams{
+			OriginalUrl: req.OriginalURL,
+			ShortName:   req.ShortName,
+		})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "failed to create link",
+			})
+			return
+		}
+
+		c.JSON(http.StatusCreated, linkResponse{
+			ID:          link.ID,
+			OriginalURL: link.OriginalUrl,
+			ShortName:   link.ShortName,
+			ShortURL:    buildShortURL(baseURL, link.ShortName),
+		})
 	})
 
 	return r

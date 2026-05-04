@@ -9,6 +9,39 @@ import (
 	"context"
 )
 
+const createLink = `-- name: CreateLink :one
+INSERT INTO links (
+    original_url,
+    short_name
+)
+VALUES (
+    $1,
+    $2
+)
+RETURNING
+    id,
+    original_url,
+    short_name,
+    created_at
+`
+
+type CreateLinkParams struct {
+	OriginalUrl string
+	ShortName   string
+}
+
+func (q *Queries) CreateLink(ctx context.Context, arg CreateLinkParams) (Link, error) {
+	row := q.db.QueryRowContext(ctx, createLink, arg.OriginalUrl, arg.ShortName)
+	var i Link
+	err := row.Scan(
+		&i.ID,
+		&i.OriginalUrl,
+		&i.ShortName,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listLinks = `-- name: ListLinks :many
 SELECT
     id,

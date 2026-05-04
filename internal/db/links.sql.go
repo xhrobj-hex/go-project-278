@@ -42,6 +42,28 @@ func (q *Queries) CreateLink(ctx context.Context, arg CreateLinkParams) (Link, e
 	return i, err
 }
 
+const getLinkByID = `-- name: GetLinkByID :one
+SELECT
+    id,
+    original_url,
+    short_name,
+    created_at
+FROM links
+WHERE id = $1
+`
+
+func (q *Queries) GetLinkByID(ctx context.Context, id int64) (Link, error) {
+	row := q.db.QueryRowContext(ctx, getLinkByID, id)
+	var i Link
+	err := row.Scan(
+		&i.ID,
+		&i.OriginalUrl,
+		&i.ShortName,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listLinks = `-- name: ListLinks :many
 SELECT
     id,

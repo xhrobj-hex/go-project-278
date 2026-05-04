@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,6 +18,9 @@ type fakeLinksStore struct {
 	created       store.Link
 	createErr     error
 	lastCreateArg store.CreateLinkParams
+	gotByID       store.Link
+	getByIDErr    error
+	lastGetID     int64
 }
 
 func (f fakeLinksStore) ListLinks(ctx context.Context) ([]store.Link, error) {
@@ -26,6 +30,11 @@ func (f fakeLinksStore) ListLinks(ctx context.Context) ([]store.Link, error) {
 func (f *fakeLinksStore) CreateLink(ctx context.Context, arg store.CreateLinkParams) (store.Link, error) {
 	f.lastCreateArg = arg
 	return f.created, f.createErr
+}
+
+func (f *fakeLinksStore) GetLinkByID(ctx context.Context, id int64) (store.Link, error) {
+	f.lastGetID = id
+	return f.gotByID, f.getByIDErr
 }
 
 func TestPing(t *testing.T) {
@@ -179,5 +188,80 @@ func TestCreateLinkConflictingShortName(t *testing.T) {
 
 	if got, want := storeFake.lastCreateArg.ShortName, "exmpl"; got != want {
 		t.Fatalf("short_name: got %q, want %q", got, want)
+	}
+}
+
+func TestGetLinkByID(t *testing.T) {
+	storeFake := &fakeLinksStore{
+		gotByID: store.Link{
+			ID:          1,
+			OriginalUrl: "https://example.com/long-url",
+			ShortName:   "exmpl",
+		},
+	}
+	r := setupRouter("http://localhost:8080", storeFake)
+
+	rq := httptest.NewRequest(http.MethodGet, "/api/links/1", nil)
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusOK; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	want := `{"id":1,"original_url":"https://example.com/long-url","short_name":"exmpl","short_url":"http://localhost:8080/r/exmpl"}`
+	if got := rc.Body.String(); got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastGetID, int64(1); got != want {
+		t.Fatalf("id: got %d, want %d", got, want)
+	}
+}
+
+func TestGetLinkByIDNotFound(t *testing.T) {
+	storeFake := &fakeLinksStore{
+		getByIDErr: sql.ErrNoRows,
+	}
+	r := setupRouter("http://localhost:8080", storeFake)
+
+	rq := httptest.NewRequest(http.MethodGet, "/api/links/999", nil)
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	if got, want := rc.Body.String(), `{"error":"link not found"}`; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastGetID, int64(999); got != want {
+		t.Fatalf("id: got %d, want %d", got, want)
+	}
+}
+
+func TestGetLinkByIDInvalidID(t *testing.T) {
+	storeFake := &fakeLinksStore{}
+	r := setupRouter("http://localhost:8080", storeFake)
+
+	rq := httptest.NewRequest(http.MethodGet, "/api/links/abc", nil)
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	if got, want := rc.Body.String(), `{"error":"invalid id"}`; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastGetID, int64(0); got != want {
+		t.Fatalf("id: got %d, want %d", got, want)
 	}
 }

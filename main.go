@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ var migrationsFS embed.FS
 type linksStore interface {
 	ListLinks(ctx context.Context) ([]store.Link, error)
 	CreateLink(ctx context.Context, arg store.CreateLinkParams) (store.Link, error)
+	GetLinkByID(ctx context.Context, id int64) (store.Link, error)
 }
 
 type linkResponse struct {
@@ -224,6 +226,38 @@ func setupRouter(baseURL string, queries linksStore) *gin.Engine {
 		}
 
 		c.JSON(http.StatusCreated, linkResponse{
+			ID:          link.ID,
+			OriginalURL: link.OriginalUrl,
+			ShortName:   link.ShortName,
+			ShortURL:    buildShortURL(baseURL, link.ShortName),
+		})
+	})
+
+	r.GET("/api/links/:id", func(c *gin.Context) {
+		id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid id",
+			})
+			return
+		}
+
+		link, err := queries.GetLinkByID(c.Request.Context(), id)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				c.JSON(http.StatusNotFound, gin.H{
+					"error": "link not found",
+				})
+				return
+			}
+
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "failed to get link",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, linkResponse{
 			ID:          link.ID,
 			OriginalURL: link.OriginalUrl,
 			ShortName:   link.ShortName,

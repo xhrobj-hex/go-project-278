@@ -3,26 +3,20 @@ package main
 import (
 	"database/sql"
 	"embed"
-	"errors"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	_ "github.com/lib/pq"
 	goose "github.com/pressly/goose/v3"
+	"github.com/xhrobj-hex/go-project-278/internal/config"
 	store "github.com/xhrobj-hex/go-project-278/internal/db"
 	"github.com/xhrobj-hex/go-project-278/internal/router"
 )
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
-
-type config struct {
-	databaseURL string
-	port        string
-	baseURL     string
-}
 
 func main() {
 	if err := run(); err != nil {
@@ -31,17 +25,22 @@ func main() {
 }
 
 func run() error {
-	cfg, err := loadConfig()
+	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 
-	if err := initSentry(); err != nil {
-		log.Printf("Sentry initialization failed: %v", err)
+	if cfg.SentryDSN != "" {
+		err := sentry.Init(sentry.ClientOptions{
+			Dsn: cfg.SentryDSN,
+		})
+		if err != nil {
+			log.Printf("Sentry initialization failed: %v", err)
+		}
+		defer sentry.Flush(2 * time.Second)
 	}
-	defer sentry.Flush(2 * time.Second)
 
-	dbConn, err := connectDB(cfg.databaseURL)
+	dbConn, err := connectDB(cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
@@ -57,38 +56,11 @@ func run() error {
 
 	queries := store.New(dbConn)
 
-	router := router.New(cfg.baseURL, queries)
+	r := router.New(cfg.BaseURL, queries)
 
-	log.Printf("server started on port %s", cfg.port)
+	log.Printf("server started on port %s", cfg.Port)
 
-	return router.Run(":" + cfg.port)
-}
-
-func loadConfig() (config, error) {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		return config{}, errors.New("DATABASE_URL is required")
-	}
-
-	port := os.Getenv("PORT") // NOTE: на Render платформа будет подсовывать порт в env PORT
-	if port == "" {
-		port = "8080"
-	}
-
-	baseURL := os.Getenv("BASE_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:" + port
-	}
-
-	return config{
-		databaseURL: databaseURL,
-		port:        port,
-		baseURL:     baseURL,
-	}, nil
-}
-
-func initSentry() error {
-	return sentry.Init(sentry.ClientOptions{}) // NOTE: Dsn берется из env SENTRY_DSN
+	return r.Run(":" + cfg.Port)
 }
 
 func connectDB(databaseURL string) (*sql.DB, error) {

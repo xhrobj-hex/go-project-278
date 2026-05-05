@@ -27,6 +27,10 @@ type fakeLinksStore struct {
 	updated       store.Link
 	updateErr     error
 	lastUpdateArg store.UpdateLinkParams
+
+	deletedRows  int64
+	deleteErr    error
+	lastDeleteID int64
 }
 
 func (f fakeLinksStore) ListLinks(ctx context.Context) ([]store.Link, error) {
@@ -46,6 +50,11 @@ func (f *fakeLinksStore) GetLinkByID(ctx context.Context, id int64) (store.Link,
 func (f *fakeLinksStore) UpdateLink(ctx context.Context, arg store.UpdateLinkParams) (store.Link, error) {
 	f.lastUpdateArg = arg
 	return f.updated, f.updateErr
+}
+
+func (f *fakeLinksStore) DeleteLink(ctx context.Context, id int64) (int64, error) {
+	f.lastDeleteID = id
+	return f.deletedRows, f.deleteErr
 }
 
 func TestPing(t *testing.T) {
@@ -387,5 +396,75 @@ func TestUpdateLinkRequiresOriginalURL(t *testing.T) {
 
 	if got, want := storeFake.lastUpdateArg, (store.UpdateLinkParams{}); got != want {
 		t.Fatalf("update args: got %+v, want %+v", got, want)
+	}
+}
+
+func TestDeleteLink(t *testing.T) {
+	storeFake := &fakeLinksStore{
+		deletedRows: 1,
+	}
+	r := setupRouter("http://localhost:8080", storeFake)
+
+	rq := httptest.NewRequest(http.MethodDelete, "/api/links/1", nil)
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusNoContent; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	if got, want := rc.Body.String(), ""; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastDeleteID, int64(1); got != want {
+		t.Fatalf("id: got %d, want %d", got, want)
+	}
+}
+
+func TestDeleteLinkNotFound(t *testing.T) {
+	storeFake := &fakeLinksStore{
+		deletedRows: 0,
+	}
+	r := setupRouter("http://localhost:8080", storeFake)
+
+	rq := httptest.NewRequest(http.MethodDelete, "/api/links/999", nil)
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	if got, want := rc.Body.String(), `{"error":"link not found"}`; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastDeleteID, int64(999); got != want {
+		t.Fatalf("id: got %d, want %d", got, want)
+	}
+}
+
+func TestDeleteLinkInvalidID(t *testing.T) {
+	storeFake := &fakeLinksStore{}
+	r := setupRouter("http://localhost:8080", storeFake)
+
+	rq := httptest.NewRequest(http.MethodDelete, "/api/links/abc", nil)
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	if got, want := rc.Body.String(), `{"error":"invalid id"}`; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastDeleteID, int64(0); got != want {
+		t.Fatalf("id: got %d, want %d", got, want)
 	}
 }

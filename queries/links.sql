@@ -42,3 +42,7 @@ RETURNING
     original_url,
     short_name,
     created_at;
+
+-- name: DeleteLink :execrows
+DELETE FROM links
+WHERE id = $1;

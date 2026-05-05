@@ -31,6 +31,7 @@ type linksStore interface {
 	CreateLink(ctx context.Context, arg store.CreateLinkParams) (store.Link, error)
 	GetLinkByID(ctx context.Context, id int64) (store.Link, error)
 	UpdateLink(ctx context.Context, arg store.UpdateLinkParams) (store.Link, error)
+	DeleteLink(ctx context.Context, id int64) (int64, error)
 }
 
 type linkResponse struct {
@@ -322,6 +323,33 @@ func setupRouter(baseURL string, queries linksStore) *gin.Engine {
 			ShortName:   link.ShortName,
 			ShortURL:    buildShortURL(baseURL, link.ShortName),
 		})
+	})
+
+	r.DELETE("/api/links/:id", func(c *gin.Context) {
+		id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid id",
+			})
+			return
+		}
+
+		rowsAffected, err := queries.DeleteLink(c.Request.Context(), id)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "failed to delete link",
+			})
+			return
+		}
+
+		if rowsAffected == 0 {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "link not found",
+			})
+			return
+		}
+
+		c.Status(http.StatusNoContent)
 	})
 
 	return r

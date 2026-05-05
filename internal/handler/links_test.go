@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	pq "github.com/lib/pq"
 	store "github.com/xhrobj-hex/go-project-278/internal/db"
-	"github.com/xhrobj-hex/go-project-278/internal/router"
 )
 
 type fakeLinksStore struct {
@@ -58,25 +58,24 @@ func (f *fakeLinksStore) DeleteLink(ctx context.Context, id int64) (int64, error
 	return f.deletedRows, f.deleteErr
 }
 
-func TestPing(t *testing.T) {
-	r := router.New("http://localhost:8080", nil)
+func setupTestRouter(baseURL string, links LinksStore) *gin.Engine {
+	gin.SetMode(gin.TestMode)
 
-	rq := httptest.NewRequest(http.MethodGet, "/ping", nil)
-	rc := httptest.NewRecorder()
+	r := gin.New()
 
-	r.ServeHTTP(rc, rq)
+	linkHandler := NewLinkHandler(baseURL, links)
 
-	if got, want := rc.Code, http.StatusOK; got != want {
-		t.Fatalf("status: got %d, want %d", got, want)
-	}
+	r.GET("/api/links", linkHandler.List)
+	r.POST("/api/links", linkHandler.Create)
+	r.GET("/api/links/:id", linkHandler.GetById)
+	r.PUT("/api/links/:id", linkHandler.Update)
+	r.DELETE("/api/links/:id", linkHandler.Delete)
 
-	if got, want := rc.Body.String(), "pong"; got != want {
-		t.Fatalf("body: got %q, want %q", got, want)
-	}
+	return r
 }
 
 func TestListLinksEmpty(t *testing.T) {
-	r := router.New("http://localhost:8080", &fakeLinksStore{})
+	r := setupTestRouter("http://localhost:8080", &fakeLinksStore{})
 
 	rq := httptest.NewRequest(http.MethodGet, "/api/links", nil)
 	rc := httptest.NewRecorder()
@@ -100,7 +99,7 @@ func TestCreateLink(t *testing.T) {
 			ShortName:   "exmpl",
 		},
 	}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	body := `{"original_url":"https://example.com/long-url","short_name":"exmpl"}`
 	rq := httptest.NewRequest(http.MethodPost, "/api/links", strings.NewReader(body))
@@ -129,7 +128,7 @@ func TestCreateLink(t *testing.T) {
 
 func TestCreateLinkRequiresOriginalURL(t *testing.T) {
 	storeFake := &fakeLinksStore{}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	body := `{"short_name":"exmpl"}`
 	rq := httptest.NewRequest(http.MethodPost, "/api/links", strings.NewReader(body))
@@ -159,7 +158,7 @@ func TestCreateLinkGeneratesShortName(t *testing.T) {
 			ShortName:   "generated",
 		},
 	}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	body := `{"original_url":"https://example.com/long-url"}`
 	rq := httptest.NewRequest(http.MethodPost, "/api/links", strings.NewReader(body))
@@ -190,7 +189,7 @@ func TestCreateLinkConflictingShortName(t *testing.T) {
 	storeFake := &fakeLinksStore{
 		createErr: &pq.Error{Code: "23505"},
 	}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	body := `{"original_url":"https://example.com/long-url","short_name":"exmpl"}`
 	rq := httptest.NewRequest(http.MethodPost, "/api/links", strings.NewReader(body))
@@ -220,7 +219,7 @@ func TestGetLinkByID(t *testing.T) {
 			ShortName:   "exmpl",
 		},
 	}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	rq := httptest.NewRequest(http.MethodGet, "/api/links/1", nil)
 	rc := httptest.NewRecorder()
@@ -245,7 +244,7 @@ func TestGetLinkByIDNotFound(t *testing.T) {
 	storeFake := &fakeLinksStore{
 		getByIDErr: sql.ErrNoRows,
 	}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	rq := httptest.NewRequest(http.MethodGet, "/api/links/999", nil)
 	rc := httptest.NewRecorder()
@@ -267,7 +266,7 @@ func TestGetLinkByIDNotFound(t *testing.T) {
 
 func TestGetLinkByIDInvalidID(t *testing.T) {
 	storeFake := &fakeLinksStore{}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	rq := httptest.NewRequest(http.MethodGet, "/api/links/abc", nil)
 	rc := httptest.NewRecorder()
@@ -295,7 +294,7 @@ func TestUpdateLink(t *testing.T) {
 			ShortName:   "exmpl-upd",
 		},
 	}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	body := `{"original_url":"https://example.com/updated-url","short_name":"exmpl-upd"}`
 	rq := httptest.NewRequest(http.MethodPut, "/api/links/1", strings.NewReader(body))
@@ -330,7 +329,7 @@ func TestUpdateLinkNotFound(t *testing.T) {
 	storeFake := &fakeLinksStore{
 		updateErr: sql.ErrNoRows,
 	}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	body := `{"original_url":"https://example.com/updated-url","short_name":"exmpl-upd"}`
 	rq := httptest.NewRequest(http.MethodPut, "/api/links/999", strings.NewReader(body))
@@ -354,7 +353,7 @@ func TestUpdateLinkNotFound(t *testing.T) {
 
 func TestUpdateLinkInvalidID(t *testing.T) {
 	storeFake := &fakeLinksStore{}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	body := `{"original_url":"https://example.com/updated-url","short_name":"exmpl-upd"}`
 	rq := httptest.NewRequest(http.MethodPut, "/api/links/abc", strings.NewReader(body))
@@ -378,7 +377,7 @@ func TestUpdateLinkInvalidID(t *testing.T) {
 
 func TestUpdateLinkRequiresOriginalURL(t *testing.T) {
 	storeFake := &fakeLinksStore{}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	body := `{"short_name":"exmpl-upd"}`
 	rq := httptest.NewRequest(http.MethodPut, "/api/links/1", strings.NewReader(body))
@@ -404,7 +403,7 @@ func TestDeleteLink(t *testing.T) {
 	storeFake := &fakeLinksStore{
 		deletedRows: 1,
 	}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	rq := httptest.NewRequest(http.MethodDelete, "/api/links/1", nil)
 	rc := httptest.NewRecorder()
@@ -428,7 +427,7 @@ func TestDeleteLinkNotFound(t *testing.T) {
 	storeFake := &fakeLinksStore{
 		deletedRows: 0,
 	}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	rq := httptest.NewRequest(http.MethodDelete, "/api/links/999", nil)
 	rc := httptest.NewRecorder()
@@ -450,7 +449,7 @@ func TestDeleteLinkNotFound(t *testing.T) {
 
 func TestDeleteLinkInvalidID(t *testing.T) {
 	storeFake := &fakeLinksStore{}
-	r := router.New("http://localhost:8080", storeFake)
+	r := setupTestRouter("http://localhost:8080", storeFake)
 
 	rq := httptest.NewRequest(http.MethodDelete, "/api/links/abc", nil)
 	rc := httptest.NewRecorder()

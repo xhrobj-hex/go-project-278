@@ -13,14 +13,20 @@ import (
 )
 
 type fakeLinksStore struct {
-	links         []store.Link
-	listErr       error
+	links   []store.Link
+	listErr error
+
 	created       store.Link
 	createErr     error
 	lastCreateArg store.CreateLinkParams
-	gotByID       store.Link
-	getByIDErr    error
-	lastGetID     int64
+
+	gotByID    store.Link
+	getByIDErr error
+	lastGetID  int64
+
+	updated       store.Link
+	updateErr     error
+	lastUpdateArg store.UpdateLinkParams
 }
 
 func (f fakeLinksStore) ListLinks(ctx context.Context) ([]store.Link, error) {
@@ -35,6 +41,11 @@ func (f *fakeLinksStore) CreateLink(ctx context.Context, arg store.CreateLinkPar
 func (f *fakeLinksStore) GetLinkByID(ctx context.Context, id int64) (store.Link, error) {
 	f.lastGetID = id
 	return f.gotByID, f.getByIDErr
+}
+
+func (f *fakeLinksStore) UpdateLink(ctx context.Context, arg store.UpdateLinkParams) (store.Link, error) {
+	f.lastUpdateArg = arg
+	return f.updated, f.updateErr
 }
 
 func TestPing(t *testing.T) {
@@ -263,5 +274,118 @@ func TestGetLinkByIDInvalidID(t *testing.T) {
 
 	if got, want := storeFake.lastGetID, int64(0); got != want {
 		t.Fatalf("id: got %d, want %d", got, want)
+	}
+}
+
+func TestUpdateLink(t *testing.T) {
+	storeFake := &fakeLinksStore{
+		updated: store.Link{
+			ID:          1,
+			OriginalUrl: "https://example.com/updated-url",
+			ShortName:   "exmpl-upd",
+		},
+	}
+	r := setupRouter("http://localhost:8080", storeFake)
+
+	body := `{"original_url":"https://example.com/updated-url","short_name":"exmpl-upd"}`
+	rq := httptest.NewRequest(http.MethodPut, "/api/links/1", strings.NewReader(body))
+	rq.Header.Set("Content-Type", "application/json")
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusOK; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	want := `{"id":1,"original_url":"https://example.com/updated-url","short_name":"exmpl-upd","short_url":"http://localhost:8080/r/exmpl-upd"}`
+	if got := rc.Body.String(); got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastUpdateArg.ID, int64(1); got != want {
+		t.Fatalf("id: got %d, want %d", got, want)
+	}
+
+	if got, want := storeFake.lastUpdateArg.OriginalUrl, "https://example.com/updated-url"; got != want {
+		t.Fatalf("original_url: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastUpdateArg.ShortName, "exmpl-upd"; got != want {
+		t.Fatalf("short_name: got %q, want %q", got, want)
+	}
+}
+
+func TestUpdateLinkNotFound(t *testing.T) {
+	storeFake := &fakeLinksStore{
+		updateErr: sql.ErrNoRows,
+	}
+	r := setupRouter("http://localhost:8080", storeFake)
+
+	body := `{"original_url":"https://example.com/updated-url","short_name":"exmpl-upd"}`
+	rq := httptest.NewRequest(http.MethodPut, "/api/links/999", strings.NewReader(body))
+	rq.Header.Set("Content-Type", "application/json")
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	if got, want := rc.Body.String(), `{"error":"link not found"}`; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastUpdateArg.ID, int64(999); got != want {
+		t.Fatalf("id: got %d, want %d", got, want)
+	}
+}
+
+func TestUpdateLinkInvalidID(t *testing.T) {
+	storeFake := &fakeLinksStore{}
+	r := setupRouter("http://localhost:8080", storeFake)
+
+	body := `{"original_url":"https://example.com/updated-url","short_name":"exmpl-upd"}`
+	rq := httptest.NewRequest(http.MethodPut, "/api/links/abc", strings.NewReader(body))
+	rq.Header.Set("Content-Type", "application/json")
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	if got, want := rc.Body.String(), `{"error":"invalid id"}`; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastUpdateArg, (store.UpdateLinkParams{}); got != want {
+		t.Fatalf("update args: got %+v, want %+v", got, want)
+	}
+}
+
+func TestUpdateLinkRequiresOriginalURL(t *testing.T) {
+	storeFake := &fakeLinksStore{}
+	r := setupRouter("http://localhost:8080", storeFake)
+
+	body := `{"short_name":"exmpl-upd"}`
+	rq := httptest.NewRequest(http.MethodPut, "/api/links/1", strings.NewReader(body))
+	rq.Header.Set("Content-Type", "application/json")
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	if got, want := rc.Body.String(), `{"error":"original_url is required"}`; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastUpdateArg, (store.UpdateLinkParams{}); got != want {
+		t.Fatalf("update args: got %+v, want %+v", got, want)
 	}
 }

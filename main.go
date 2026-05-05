@@ -30,6 +30,7 @@ type linksStore interface {
 	ListLinks(ctx context.Context) ([]store.Link, error)
 	CreateLink(ctx context.Context, arg store.CreateLinkParams) (store.Link, error)
 	GetLinkByID(ctx context.Context, id int64) (store.Link, error)
+	UpdateLink(ctx context.Context, arg store.UpdateLinkParams) (store.Link, error)
 }
 
 type linkResponse struct {
@@ -265,10 +266,68 @@ func setupRouter(baseURL string, queries linksStore) *gin.Engine {
 		})
 	})
 
+	r.PUT("/api/links/:id", func(c *gin.Context) {
+		id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid id",
+			})
+			return
+		}
+
+		var req createLinkRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "invalid request body",
+			})
+			return
+		}
+
+		if req.OriginalURL == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "original_url is required",
+			})
+			return
+		}
+
+		link, err := queries.UpdateLink(c.Request.Context(), store.UpdateLinkParams{
+			ID:          id,
+			OriginalUrl: req.OriginalURL,
+			ShortName:   req.ShortName,
+		})
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				c.JSON(http.StatusNotFound, gin.H{
+					"error": "link not found",
+				})
+				return
+			}
+
+			if isUniqueViolation(err) {
+				c.JSON(http.StatusConflict, gin.H{
+					"error": "short_name already exists",
+				})
+				return
+			}
+
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "failed to update link",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, linkResponse{
+			ID:          link.ID,
+			OriginalURL: link.OriginalUrl,
+			ShortName:   link.ShortName,
+			ShortURL:    buildShortURL(baseURL, link.ShortName),
+		})
+	})
+
 	return r
 }
 
-func buildShortURL(baseURL string, shortName string) string {
+func buildShortURL(baseURL, shortName string) string {
 	return strings.TrimRight(baseURL, "/") + "/r/" + shortName
 }
 

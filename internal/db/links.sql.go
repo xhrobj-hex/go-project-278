@@ -101,3 +101,34 @@ func (q *Queries) ListLinks(ctx context.Context) ([]Link, error) {
 	}
 	return items, nil
 }
+
+const updateLink = `-- name: UpdateLink :one
+UPDATE links
+SET
+    original_url = $2,
+    short_name = $3
+WHERE id = $1
+RETURNING
+    id,
+    original_url,
+    short_name,
+    created_at
+`
+
+type UpdateLinkParams struct {
+	ID          int64
+	OriginalUrl string
+	ShortName   string
+}
+
+func (q *Queries) UpdateLink(ctx context.Context, arg UpdateLinkParams) (Link, error) {
+	row := q.db.QueryRowContext(ctx, updateLink, arg.ID, arg.OriginalUrl, arg.ShortName)
+	var i Link
+	err := row.Scan(
+		&i.ID,
+		&i.OriginalUrl,
+		&i.ShortName,
+		&i.CreatedAt,
+	)
+	return i, err
+}

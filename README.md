@@ -100,6 +100,20 @@ make docker-run
 http://localhost:8080/ping
 ```
 
+## Локальный запуск через Docker Compose
+
+Docker Compose запускает приложение и PostgreSQL вместе.
+
+```bash
+make compose-up
+```
+
+После запуска приложение будет доступно по адресу:
+
+```text
+http://localhost:8080/ping
+```
+
 ## Пример API
 
 Создание короткой ссылки:

@@ -5,6 +5,7 @@
 		lint \
 		test test-coverage \
 		docker-build docker-run \
+		compose-up compose-down compose-down-volumes compose-logs \
 		clean \
 
 POSTGRES_USER=shorty
@@ -72,6 +73,18 @@ docker-run:
 		-e PORT=8080 \
 		-e SENTRY_DSN="$(SENTRY_DSN)" \
 		$(IMAGE_NAME)
+
+compose-up:
+	docker compose up --build
+
+compose-down:
+	docker compose down
+
+compose-down-volumes:
+	docker compose down -v
+
+compose-logs:
+	docker compose logs -f
 
 clean:
 	rm -f ./bin/main

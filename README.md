@@ -9,11 +9,15 @@
 - Генерация короткой ссылки из длинной
 - Переадресация при переходе по короткой ссылке
 - Хранение данных в PostgreSQL
-- ???: Опционально: статистика переходов
 
 ## Демо
 
 Приложение доступно по ссылке: [go-project-278 на Render](https://go-project-278-3ycr.onrender.com/ping).
+
+## Документация
+
+- [Быстрый чек-лист CRUD на Render](docs/render-crud-checklist_quick.md)
+- [Проверка CRUD на Render](docs/render-crud-checklist.md)
 
 ## Мониторинг ошибок
 
@@ -24,6 +28,7 @@
 Для запуска приложения должны быть указаны переменные окружения:
 
 - `DATABASE_URL` - строка подключения к PostgreSQL
+- `BASE_URL` — публичный URL приложения на Render (`BASE_URL=https://go-project-278-3ycr.onrender.com`)
 - `SENTRY_DSN` - DSN для Sentry (опционально, если не указан - sentry просто не подключится)
 - `PORT` - порт HTTP-сервера (опционально, локально дефолтный `8080`, а на Render это автоматический env)
 

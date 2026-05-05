@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	_ "github.com/lib/pq"
 	goose "github.com/pressly/goose/v3"
 	"github.com/xhrobj-hex/go-project-278/internal/config"
+	"github.com/xhrobj-hex/go-project-278/internal/database"
 	store "github.com/xhrobj-hex/go-project-278/internal/db"
 	"github.com/xhrobj-hex/go-project-278/internal/router"
 )
@@ -40,7 +40,7 @@ func run() error {
 		defer sentry.Flush(2 * time.Second)
 	}
 
-	dbConn, err := connectDB(cfg.DatabaseURL)
+	dbConn, err := database.Connect(cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
@@ -56,25 +56,13 @@ func run() error {
 
 	queries := store.New(dbConn)
 
-	r := router.New(cfg.BaseURL, queries)
+	httpRouter := router.New(cfg.BaseURL, queries)
 
 	log.Printf("server started on port %s", cfg.Port)
 
-	return r.Run(":" + cfg.Port)
-}
+	echoBanner()
 
-func connectDB(databaseURL string) (*sql.DB, error) {
-	db, err := sql.Open("postgres", databaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
-	}
-
-	if err := db.Ping(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	return db, nil
+	return httpRouter.Run(":" + cfg.Port)
 }
 
 func runMigrations(db *sql.DB) error {
@@ -89,4 +77,15 @@ func runMigrations(db *sql.DB) error {
 	}
 
 	return nil
+}
+
+func echoBanner() {
+	fmt.Println(`
+  _________.__                   __                              
+ /   _____/|  |__   ____________/  |_  ____   ____   ___________ 
+ \_____  \ |  |  \ /  _ \_  __ \   __\/ __ \ /    \_/ __ \_  __ \
+ /        \|   Y  (  <_> )  | \/|  | \  ___/|   |  \  ___/|  | \/
+/_______  /|___|  /\____/|__|   |__|  \___  >___|  /\___  >__|   
+        \/      \/                        \/     \/     \/
+	`)
 }

@@ -5,7 +5,7 @@
 		lint \
 		test test-coverage \
 		docker-build docker-run \
-		compose-up compose-down compose-down-volumes compose-logs \
+		compose-up compose-down compose-down-volumes compose-logs db-connect \
 		clean \
 
 POSTGRES_USER=shorty
@@ -85,6 +85,9 @@ compose-down-volumes:
 
 compose-logs:
 	docker compose logs -f
+
+db-connect:
+	docker compose exec postgres psql -U shorty -d shortener
 
 clean:
 	rm -f ./bin/main

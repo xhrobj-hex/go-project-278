@@ -14,15 +14,6 @@
 
 Приложение доступно по ссылке: [go-project-278 на Render](https://go-project-278-3ycr.onrender.com/ping).
 
-## Документация
-
-- [Быстрый чек-лист CRUD на Render](docs/render-crud-checklist_quick.md)
-- [Проверка CRUD на Render](docs/render-crud-checklist.md)
-
-## Мониторинг ошибок
-
-Для мониторинга ошибок подключен [Sentry](https://sentry.io).
-
 ## Переменные окружения для Render
 
 Для запуска приложения должны быть указаны переменные окружения:
@@ -32,43 +23,37 @@
 - `SENTRY_DSN` - DSN для Sentry (опционально, если не указан - sentry просто не подключится)
 - `PORT` - порт HTTP-сервера (опционально, локально дефолтный `8080`, а на Render это автоматический env)
 
-## Миграции
+## Мониторинг ошибок
 
-Миграции хранятся в директории `migrations/` и автоматически применяются приложением при старте через `goose`.
+Для мониторинга ошибок подключен [Sentry](https://sentry.io).
 
-Для локальной разработки в Makefile оставлена команда:
+## Локальный запуск через Docker Compose
 
-```bash
-make migrate-status
-```
+Docker Compose запускает весь локальный стек:
 
-## Локальный запуск
+- PostgreSQL
+- backend-приложение на Go
+- frontend-приложение из пакета `@hexlet/project-url-shortener-frontend`
 
-Поднять PostgreSQL:
-
-```bash
-make postgres-up
-```
-
-или для созданного ранее контейнера:
+Запустить проект:
 
 ```bash
-make postgres-start
+make compose-up
 ```
 
-Запустить приложение локально без Docker:
+После запуска frontend будет доступен по адресу:
 
-```bash
-make run
+```text
+http://localhost:5173/
 ```
 
-После запуска приложение будет доступно по адресу:
+Backend будет доступен по адресу:
 
 ```text
 http://localhost:8080/ping
 ```
 
-## Локальный запуск через Docker
+## Локальный запуск Backend через Docker
 
 Поднять PostgreSQL:
 
@@ -100,12 +85,24 @@ make docker-run
 http://localhost:8080/ping
 ```
 
-## Локальный запуск через Docker Compose
+## Локальный запуск Backend'а "руками"
 
-Docker Compose запускает приложение и PostgreSQL вместе.
+Поднять PostgreSQL:
 
 ```bash
-make compose-up
+make postgres-up
+```
+
+или для созданного ранее контейнера:
+
+```bash
+make postgres-start
+```
+
+Запустить приложение локально без Docker:
+
+```bash
+make run
 ```
 
 После запуска приложение будет доступно по адресу:
@@ -113,6 +110,21 @@ make compose-up
 ```text
 http://localhost:8080/ping
 ```
+
+## Миграции
+
+Миграции хранятся в директории `migrations/` и автоматически применяются приложением при старте через `goose`.
+
+Для локальной разработки в Makefile оставлена команда:
+
+```bash
+make migrate-status
+```
+
+## Документация
+
+- [Быстрый чек-лист CRUD на Render](docs/render-crud-checklist_quick.md)
+- [Проверка CRUD на Render](docs/render-crud-checklist.md)
 
 ## Пример API
 

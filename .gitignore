@@ -11,3 +11,6 @@ coverage.out
 
 # asciinema
 *.cast
+
+# frontend
+node_modules/

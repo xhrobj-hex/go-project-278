@@ -12,7 +12,7 @@
 
 ## Демо
 
-Приложение доступно по ссылке: [go-project-278 на Render](https://go-project-278-3ycr.onrender.com/ping).
+Приложение доступно по ссылке: [go-project-278 на Render](https://go-project-278-3ycr.onrender.com).
 
 ## Переменные окружения для Render
 
@@ -20,8 +20,8 @@
 
 - `DATABASE_URL` - строка подключения к PostgreSQL
 - `BASE_URL` — публичный URL приложения на Render (`BASE_URL=https://go-project-278-3ycr.onrender.com`)
-- `SENTRY_DSN` - DSN для Sentry (опционально, если не указан - sentry просто не подключится)
-- `PORT` - порт HTTP-сервера (опционально, локально дефолтный `8080`, а на Render это автоматический env)
+- `SENTRY_DSN` - DSN для Sentry (опционально, если не указан - Sentry не подключается)
+- `PORT` - внешний порт контейнера для Caddy (`PORT=80`)
 
 ## Мониторинг ошибок
 
@@ -32,8 +32,9 @@
 Docker Compose запускает весь локальный стек:
 
 - PostgreSQL
-- backend-приложение на Go
-- frontend-приложение из пакета `@hexlet/project-url-shortener-frontend`
+- приложение в одном контейнере:
+  - Caddy отдаёт UI и проксирует API-запросы
+  - Go-приложение обрабатывает backend-запросы
 
 Запустить проект:
 
@@ -41,19 +42,25 @@ Docker Compose запускает весь локальный стек:
 make compose-up
 ```
 
-После запуска frontend будет доступен по адресу:
+После запуска веб-интерфейс будет доступен по адресу:
 
 ```text
-http://localhost:5173/
+http://localhost:8080/
 ```
 
-Backend будет доступен по адресу:
+Backend-маршрут для проверки:
 
 ```text
 http://localhost:8080/ping
 ```
 
-## Локальный запуск Backend через Docker
+API также доступен через тот же origin:
+
+```text
+http://localhost:8080/api/links
+```
+
+## Локальный запуск через Docker
 
 Поднять PostgreSQL:
 
@@ -79,10 +86,10 @@ make docker-build
 make docker-run
 ```
 
-После запуска приложение будет доступно по адресу:
+После запуска веб-интерфейс будет доступен по адресу:
 
 ```text
-http://localhost:8080/ping
+http://localhost:8080
 ```
 
 ## Локальный запуск Backend'а "руками"
@@ -110,6 +117,8 @@ make run
 ```text
 http://localhost:8080/ping
 ```
+
+В этом режиме UI через Caddy не запускается.
 
 ## Миграции
 

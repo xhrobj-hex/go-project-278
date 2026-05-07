@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"errors"
+	"fmt"
 	"math/big"
 	"net/http"
 	"strconv"
@@ -16,7 +17,8 @@ import (
 )
 
 type LinksStore interface {
-	ListLinks(ctx context.Context) ([]store.Link, error)
+	ListLinks(ctx context.Context, arg store.ListLinksParams) ([]store.Link, error)
+	CountLinks(ctx context.Context) (int64, error)
 	CreateLink(ctx context.Context, arg store.CreateLinkParams) (store.Link, error)
 	GetLinkByID(ctx context.Context, id int64) (store.Link, error)
 	UpdateLink(ctx context.Context, arg store.UpdateLinkParams) (store.Link, error)
@@ -40,6 +42,11 @@ type createLinkRequest struct {
 	ShortName   string `json:"short_name"`
 }
 
+type linksRange struct {
+	start int32
+	end   int32
+}
+
 func NewLinkHandler(baseURL string, queries LinksStore) *LinkHandler {
 	return &LinkHandler{
 		baseURL: baseURL,
@@ -48,12 +55,38 @@ func NewLinkHandler(baseURL string, queries LinksStore) *LinkHandler {
 }
 
 func (h *LinkHandler) List(c *gin.Context) {
-	links, err := h.queries.ListLinks(c.Request.Context())
+	linksRange, err := parseLinksRange(c.Query("range"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid range",
+		})
+		return
+	}
+
+	total, err := h.queries.CountLinks(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to count links",
+		})
+		return
+	}
+
+	links, err := h.queries.ListLinks(c.Request.Context(), store.ListLinksParams{
+		Limit:  linksRange.limit(),
+		Offset: linksRange.start,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "failed to list links",
 		})
 		return
+	}
+
+	if len(links) == 0 {
+		c.Header("Content-Range", fmt.Sprintf("links */%d", total))
+	} else {
+		end := linksRange.start + int32(len(links)) - 1
+		c.Header("Content-Range", fmt.Sprintf("links %d-%d/%d", linksRange.start, end, total))
 	}
 
 	rs := make([]linkResponse, 0, len(links))
@@ -260,4 +293,46 @@ func isUniqueViolation(err error) bool {
 	var pqErr *pq.Error
 	// NOTE: https://www.postgresql.org/docs/current/plpgsql-errors-and-messages.html
 	return errors.As(err, &pqErr) && pqErr.Code == "23505"
+}
+
+func parseLinksRange(value string) (linksRange, error) {
+	if value == "" {
+		return linksRange{start: 0, end: 9}, nil
+	}
+
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(value, "[") || !strings.HasSuffix(value, "]") {
+		return linksRange{}, errors.New("invalid range")
+	}
+
+	value = strings.TrimPrefix(value, "[")
+	value = strings.TrimSuffix(value, "]")
+
+	parts := strings.Split(value, ",")
+	if len(parts) != 2 {
+		return linksRange{}, errors.New("invalid range")
+	}
+
+	start, err := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 32)
+	if err != nil {
+		return linksRange{}, errors.New("invalid range")
+	}
+
+	end, err := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 32)
+	if err != nil {
+		return linksRange{}, errors.New("invalid range")
+	}
+
+	if start < 0 || end < start {
+		return linksRange{}, errors.New("invalid range")
+	}
+
+	return linksRange{
+		start: int32(start),
+		end:   int32(end),
+	}, nil
+}
+
+func (r linksRange) limit() int32 {
+	return r.end - r.start + 1
 }

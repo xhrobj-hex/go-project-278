@@ -14,8 +14,12 @@ import (
 )
 
 type fakeLinksStore struct {
-	links   []store.Link
-	listErr error
+	links       []store.Link
+	listErr     error
+	lastListArg store.ListLinksParams
+
+	total    int64
+	countErr error
 
 	created       store.Link
 	createErr     error
@@ -34,8 +38,13 @@ type fakeLinksStore struct {
 	lastDeleteID int64
 }
 
-func (f fakeLinksStore) ListLinks(ctx context.Context) ([]store.Link, error) {
+func (f *fakeLinksStore) ListLinks(ctx context.Context, arg store.ListLinksParams) ([]store.Link, error) {
+	f.lastListArg = arg
 	return f.links, f.listErr
+}
+
+func (f *fakeLinksStore) CountLinks(ctx context.Context) (int64, error) {
+	return f.total, f.countErr
 }
 
 func (f *fakeLinksStore) CreateLink(ctx context.Context, arg store.CreateLinkParams) (store.Link, error) {
@@ -466,5 +475,74 @@ func TestDeleteLinkInvalidID(t *testing.T) {
 
 	if got, want := storeFake.lastDeleteID, int64(0); got != want {
 		t.Fatalf("id: got %d, want %d", got, want)
+	}
+}
+
+func TestListLinksWithRange(t *testing.T) {
+	storeFake := &fakeLinksStore{
+		total: 42,
+		links: []store.Link{
+			{ID: 1, OriginalUrl: "https://example.com/one", ShortName: "one"},
+			{ID: 2, OriginalUrl: "https://example.com/two", ShortName: "two"},
+		},
+	}
+
+	r := setupTestRouter("http://localhost:8080", storeFake)
+
+	rq := httptest.NewRequest(http.MethodGet, "/api/links?range=[0,1]", nil)
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusOK; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	if got, want := rc.Header().Get("Content-Range"), "links 0-1/42"; got != want {
+		t.Fatalf("Content-Range: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastListArg.Limit, int32(2); got != want {
+		t.Fatalf("limit: got %d, want %d", got, want)
+	}
+
+	if got, want := storeFake.lastListArg.Offset, int32(0); got != want {
+		t.Fatalf("offset: got %d, want %d", got, want)
+	}
+}
+
+func TestListLinksWithRangeAndSpaces(t *testing.T) {
+	storeFake := &fakeLinksStore{
+		total: 11,
+		links: []store.Link{
+			{ID: 6, OriginalUrl: "https://example.com/six", ShortName: "six"},
+			{ID: 7, OriginalUrl: "https://example.com/seven", ShortName: "7even"},
+			{ID: 8, OriginalUrl: "https://example.com/eight", ShortName: "eight"},
+			{ID: 9, OriginalUrl: "https://example.com/nine", ShortName: "nine"},
+			{ID: 10, OriginalUrl: "https://example.com/ten", ShortName: "X"},
+		},
+	}
+
+	r := setupTestRouter("http://localhost:8080", storeFake)
+
+	rq := httptest.NewRequest(http.MethodGet, "/api/links?range=[5,%209]", nil)
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusOK; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	if got, want := rc.Header().Get("Content-Range"), "links 5-9/11"; got != want {
+		t.Fatalf("Content-Range: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastListArg.Limit, int32(5); got != want {
+		t.Fatalf("limit: got %d, want %d", got, want)
+	}
+
+	if got, want := storeFake.lastListArg.Offset, int32(5); got != want {
+		t.Fatalf("offset: got %d, want %d", got, want)
 	}
 }

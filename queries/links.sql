@@ -5,7 +5,12 @@ SELECT
     short_name,
     created_at
 FROM links
-ORDER BY id DESC;
+ORDER BY id DESC
+LIMIT $1 OFFSET $2;
+
+-- name: CountLinks :one
+SELECT COUNT(*)
+FROM links;
 
 -- name: CreateLink :one
 INSERT INTO links (

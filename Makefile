@@ -68,7 +68,7 @@ docker-build:
 docker-run:
 	docker run --rm \
 		--name $(CONTAINER_NAME) \
-		-p 8080:8080 \
+		-p 8080:80 \
 		-e DATABASE_URL=$(DOCKER_POSTGRES_DSN) \
 		-e PORT=8080 \
 		-e SENTRY_DSN="$(SENTRY_DSN)" \

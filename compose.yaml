@@ -25,6 +25,7 @@ services:
       PORT: "8080"
       DATABASE_URL: postgres://shorty:secret@postgres:5432/shortener?sslmode=disable
       BASE_URL: http://localhost:8080
+      FRONTEND_ORIGIN: http://localhost:5173
       SENTRY_DSN: ${SENTRY_DSN:-}
     depends_on:
       postgres:

@@ -56,7 +56,7 @@ func run() error {
 
 	queries := store.New(dbConn)
 
-	httpRouter := router.New(cfg.BaseURL, queries)
+	httpRouter := router.New(cfg.BaseURL, cfg.FrontendOrigin, queries)
 
 	log.Printf("server started on port %s", cfg.Port)
 

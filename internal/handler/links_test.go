@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	pq "github.com/lib/pq"
@@ -15,6 +16,7 @@ import (
 
 type fakeLinksStore struct {
 	links       []store.Link
+	linkVisits  []store.LinkVisit
 	listErr     error
 	lastListArg store.ListLinksParams
 
@@ -67,6 +69,40 @@ func (f *fakeLinksStore) DeleteLink(ctx context.Context, id int64) (int64, error
 	return f.deletedRows, f.deleteErr
 }
 
+func (f *fakeLinksStore) GetLinkByShortName(ctx context.Context, shortName string) (store.Link, error) {
+	for _, link := range f.links {
+		if link.ShortName == shortName {
+			return link, nil
+		}
+	}
+
+	return store.Link{}, sql.ErrNoRows
+}
+
+func (f *fakeLinksStore) CreateLinkVisit(ctx context.Context, arg store.CreateLinkVisitParams) (store.LinkVisit, error) {
+	visit := store.LinkVisit{
+		ID:        int64(len(f.linkVisits) + 1),
+		LinkID:    arg.LinkID,
+		Ip:        arg.Ip,
+		UserAgent: arg.UserAgent,
+		Referer:   arg.Referer,
+		Status:    arg.Status,
+		CreatedAt: time.Now(),
+	}
+
+	f.linkVisits = append(f.linkVisits, visit)
+
+	return visit, nil
+}
+
+func (f *fakeLinksStore) ListLinkVisits(ctx context.Context, arg store.ListLinkVisitsParams) ([]store.LinkVisit, error) {
+	return f.linkVisits, nil
+}
+
+func (f *fakeLinksStore) CountLinkVisits(ctx context.Context) (int64, error) {
+	return int64(len(f.linkVisits)), nil
+}
+
 func setupTestRouter(baseURL string, links LinksStore) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
@@ -76,7 +112,7 @@ func setupTestRouter(baseURL string, links LinksStore) *gin.Engine {
 
 	r.GET("/api/links", linkHandler.List)
 	r.POST("/api/links", linkHandler.Create)
-	r.GET("/api/links/:id", linkHandler.GetById)
+	r.GET("/api/links/:id", linkHandler.GetByID)
 	r.PUT("/api/links/:id", linkHandler.Update)
 	r.DELETE("/api/links/:id", linkHandler.Delete)
 

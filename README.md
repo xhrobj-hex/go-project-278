@@ -8,6 +8,7 @@
 
 - Генерация короткой ссылки из длинной
 - Переадресация при переходе по короткой ссылке
+- Сбор и просмотр статистики посещений
 - Хранение данных в PostgreSQL
 
 ## Демо
@@ -129,11 +130,6 @@ http://localhost:8080/ping
 ```bash
 make migrate-status
 ```
-
-## Документация
-
-- [Быстрый чек-лист CRUD на Render](docs/render-crud-checklist_quick.md)
-- [Проверка CRUD на Render](docs/render-crud-checklist.md)
 
 ## Пример API
 

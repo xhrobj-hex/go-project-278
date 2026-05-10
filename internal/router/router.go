@@ -17,6 +17,8 @@ import (
 func New(baseURL, frontendOrigin string, links handler.LinksStore) *gin.Engine {
 	r := gin.New()
 
+	r.TrustedPlatform = gin.PlatformCloudflare
+
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 	r.Use(sentrygin.New(sentrygin.Options{
@@ -51,9 +53,11 @@ func New(baseURL, frontendOrigin string, links handler.LinksStore) *gin.Engine {
 
 	r.GET("/api/links", linkHandler.List)
 	r.POST("/api/links", linkHandler.Create)
-	r.GET("/api/links/:id", linkHandler.GetById)
+	r.GET("/api/links/:id", linkHandler.GetByID)
 	r.PUT("/api/links/:id", linkHandler.Update)
 	r.DELETE("/api/links/:id", linkHandler.Delete)
+	r.GET("/r/:code", linkHandler.Redirect)
+	r.GET("/api/link_visits", linkHandler.ListVisits)
 
 	return r
 }

@@ -36,6 +36,15 @@ SELECT
 FROM links
 WHERE id = $1;
 
+-- name: GetLinkByShortName :one
+SELECT
+    id,
+    original_url,
+    short_name,
+    created_at
+FROM links
+WHERE short_name = $1;
+
 -- name: UpdateLink :one
 UPDATE links
 SET
@@ -51,3 +60,44 @@ RETURNING
 -- name: DeleteLink :execrows
 DELETE FROM links
 WHERE id = $1;
+
+-- name: CreateLinkVisit :one
+INSERT INTO link_visits (
+    link_id,
+    ip,
+    user_agent,
+    referer,
+    status
+)
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5
+)
+RETURNING
+    id,
+    link_id,
+    ip,
+    user_agent,
+    referer,
+    status,
+    created_at;
+
+-- name: ListLinkVisits :many
+SELECT
+    id,
+    link_id,
+    ip,
+    user_agent,
+    referer,
+    status,
+    created_at
+FROM link_visits
+ORDER BY id DESC
+LIMIT $1 OFFSET $2;
+
+-- name: CountLinkVisits :one
+SELECT COUNT(*)
+FROM link_visits;

@@ -182,11 +182,11 @@ func TestCreateLinkRequiresOriginalURL(t *testing.T) {
 
 	r.ServeHTTP(rc, rq)
 
-	if got, want := rc.Code, http.StatusBadRequest; got != want {
+	if got, want := rc.Code, http.StatusUnprocessableEntity; got != want {
 		t.Fatalf("status: got %d, want %d", got, want)
 	}
 
-	if got, want := rc.Body.String(), `{"error":"original_url is required"}`; got != want {
+	if got, want := rc.Body.String(), `{"errors":{"original_url":"is required"}}`; got != want {
 		t.Fatalf("body: got %q, want %q", got, want)
 	}
 
@@ -243,11 +243,11 @@ func TestCreateLinkConflictingShortName(t *testing.T) {
 
 	r.ServeHTTP(rc, rq)
 
-	if got, want := rc.Code, http.StatusConflict; got != want {
+	if got, want := rc.Code, http.StatusUnprocessableEntity; got != want {
 		t.Fatalf("status: got %d, want %d", got, want)
 	}
 
-	if got, want := rc.Body.String(), `{"error":"short_name already exists"}`; got != want {
+	if got, want := rc.Body.String(), `{"errors":{"short_name":"short name already in use"}}`; got != want {
 		t.Fatalf("body: got %q, want %q", got, want)
 	}
 
@@ -431,11 +431,11 @@ func TestUpdateLinkRequiresOriginalURL(t *testing.T) {
 
 	r.ServeHTTP(rc, rq)
 
-	if got, want := rc.Code, http.StatusBadRequest; got != want {
+	if got, want := rc.Code, http.StatusUnprocessableEntity; got != want {
 		t.Fatalf("status: got %d, want %d", got, want)
 	}
 
-	if got, want := rc.Body.String(), `{"error":"original_url is required"}`; got != want {
+	if got, want := rc.Body.String(), `{"errors":{"original_url":"is required"}}`; got != want {
 		t.Fatalf("body: got %q, want %q", got, want)
 	}
 
@@ -580,5 +580,53 @@ func TestListLinksWithRangeAndSpaces(t *testing.T) {
 
 	if got, want := storeFake.lastListArg.Offset, int32(5); got != want {
 		t.Fatalf("offset: got %d, want %d", got, want)
+	}
+}
+
+func TestCreateLinkRejectsInvalidOriginalURL(t *testing.T) {
+	storeFake := &fakeLinksStore{}
+	r := setupTestRouter("http://localhost:8080", storeFake)
+
+	body := `{"original_url":"not-url","short_name":"exmpl"}`
+	rq := httptest.NewRequest(http.MethodPost, "/api/links", strings.NewReader(body))
+	rq.Header.Set("Content-Type", "application/json")
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusUnprocessableEntity; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	if got, want := rc.Body.String(), `{"errors":{"original_url":"must be a valid URL"}}`; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastCreateArg, (store.CreateLinkParams{}); got != want {
+		t.Fatalf("create args: got %+v, want %+v", got, want)
+	}
+}
+
+func TestCreateLinkRejectsTooShortShortName(t *testing.T) {
+	storeFake := &fakeLinksStore{}
+	r := setupTestRouter("http://localhost:8080", storeFake)
+
+	body := `{"original_url":"https://example.com","short_name":"ab"}`
+	rq := httptest.NewRequest(http.MethodPost, "/api/links", strings.NewReader(body))
+	rq.Header.Set("Content-Type", "application/json")
+	rc := httptest.NewRecorder()
+
+	r.ServeHTTP(rc, rq)
+
+	if got, want := rc.Code, http.StatusUnprocessableEntity; got != want {
+		t.Fatalf("status: got %d, want %d", got, want)
+	}
+
+	if got, want := rc.Body.String(), `{"errors":{"short_name":"must be at least 3 characters"}}`; got != want {
+		t.Fatalf("body: got %q, want %q", got, want)
+	}
+
+	if got, want := storeFake.lastCreateArg, (store.CreateLinkParams{}); got != want {
+		t.Fatalf("create args: got %+v, want %+v", got, want)
 	}
 }

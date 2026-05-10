@@ -56,8 +56,8 @@ type linkVisitResponse struct {
 }
 
 type createLinkRequest struct {
-	OriginalURL string `json:"original_url"`
-	ShortName   string `json:"short_name"`
+	OriginalURL string `json:"original_url" binding:"required,url"`
+	ShortName   string `json:"short_name" binding:"omitempty,min=3,max=32"`
 }
 
 type linksRange struct {
@@ -128,16 +128,7 @@ func (h *LinkHandler) List(c *gin.Context) {
 func (h *LinkHandler) Create(c *gin.Context) {
 	var req createLinkRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid request body",
-		})
-		return
-	}
-
-	if req.OriginalURL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "original_url is required",
-		})
+		handleBindError(c, err)
 		return
 	}
 
@@ -152,9 +143,10 @@ func (h *LinkHandler) Create(c *gin.Context) {
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
-			c.JSON(http.StatusConflict, gin.H{
-				"error": "short_name already exists",
-			})
+			c.JSON(http.StatusUnprocessableEntity, validationErrorResponse(
+				"short_name",
+				"short name already in use",
+			))
 			return
 		}
 
@@ -217,23 +209,19 @@ func (h *LinkHandler) Update(c *gin.Context) {
 
 	var req createLinkRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid request body",
-		})
+		handleBindError(c, err)
 		return
 	}
 
-	if req.OriginalURL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "original_url is required",
-		})
-		return
+	shortName := req.ShortName
+	if shortName == "" {
+		shortName = generateShortName()
 	}
 
 	link, err := h.queries.UpdateLink(c.Request.Context(), store.UpdateLinkParams{
 		ID:          id,
 		OriginalUrl: req.OriginalURL,
-		ShortName:   req.ShortName,
+		ShortName:   shortName,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -244,9 +232,10 @@ func (h *LinkHandler) Update(c *gin.Context) {
 		}
 
 		if isUniqueViolation(err) {
-			c.JSON(http.StatusConflict, gin.H{
-				"error": "short_name already exists",
-			})
+			c.JSON(http.StatusUnprocessableEntity, validationErrorResponse(
+				"short_name",
+				"short name already in use",
+			))
 			return
 		}
 

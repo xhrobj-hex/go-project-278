@@ -15,7 +15,7 @@ import (
 	"github.com/xhrobj-hex/go-project-278/internal/router"
 )
 
-//go:embed migrations/*.sql
+//go:embed db/migrations/*.sql
 var migrationsFS embed.FS
 
 func main() {
@@ -72,7 +72,7 @@ func runMigrations(db *sql.DB) error {
 		return fmt.Errorf("failed to set goose dialect: %w", err)
 	}
 
-	if err := goose.Up(db, "migrations"); err != nil {
+	if err := goose.Up(db, "db/migrations"); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 

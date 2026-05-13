@@ -51,7 +51,7 @@ run: build
 	DATABASE_URL=$(LOCAL_POSTGRES_DSN) ./bin/main
 
 migrate-status:
-	goose -dir migrations postgres "$(LOCAL_POSTGRES_DSN)" status
+	goose -dir db/migrations postgres "$(LOCAL_POSTGRES_DSN)" status
 
 lint:
 	golangci-lint run
